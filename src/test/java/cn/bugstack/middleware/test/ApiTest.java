@@ -1,17 +1,16 @@
 package cn.bugstack.middleware.test;
 
-import com.alibaba.fastjson.JSON;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.redisson.api.RBlockingQueue;
 import org.redisson.api.RBucket;
 import org.redisson.api.RDelayedQueue;
 import org.redisson.api.RedissonClient;
-import org.redisson.config.Config;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(SpringRunner.class)
@@ -26,7 +25,6 @@ public class ApiTest {
         // 设置字符串
         RBucket<String> keyObj = redissonClient.getBucket("user");
         keyObj.set("小傅哥");
-
         System.out.println(keyObj.get());
     }
 
@@ -40,7 +38,7 @@ public class ApiTest {
                 while (true){
                     Object take = blockingQueue.take();
                     System.out.println(take);
-                    Thread.sleep(10);
+                    TimeUnit.MILLISECONDS.sleep(100);
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -49,7 +47,7 @@ public class ApiTest {
 
         int i = 0;
         while (true){
-            delayedQueue.offerAsync("测试" + ++i, 100L, TimeUnit.MILLISECONDS);
+            delayedQueue.offerAsync("测试" + ++i,100L , TimeUnit.MILLISECONDS);
             Thread.sleep(1000L);
         }
 
