@@ -4,6 +4,7 @@ import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.redisson.api.RLock;
+import org.redisson.api.RMap;
 import org.redisson.api.RSemaphore;
 import org.redisson.api.RedissonClient;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +16,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -37,6 +39,7 @@ public class RedissonLockTests {
             e.printStackTrace();
         }
     }
+
 
     @Test
     public void testLock2(){
@@ -97,6 +100,83 @@ public class RedissonLockTests {
                 semaphore.release();//释放令牌，腾出停车场车位
             } catch (InterruptedException e) {
                 e.printStackTrace();
+            }
+        });
+
+    }
+
+
+
+    @Test
+    public void testMapLock1(){
+        String key = "testMapLock1";
+        RMap<String,String> mapLock =  redissonClient.getMap(key);
+
+        RLock lock =mapLock.getLock("A");
+        try {
+            System.out.println(Thread.currentThread().getName()+" "+ "获得锁的结果"+ lock.tryLock(1,30, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        RLock lock2 =mapLock.getLock("B");
+        try {
+            System.out.println(Thread.currentThread().getName()+" "+ "获得锁的结果"+ lock2.tryLock(1,30, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testMapLock2(){
+        String key = "testMapLock2";
+        RMap<String,String> mapLock =  redissonClient.getMap(key);
+        RLock lock =mapLock.getLock("A");
+        try {
+
+            IntStream.range(1,5).parallel().forEach(r->{
+                try {
+                    System.out.println(Thread.currentThread().getName()+" "+ r+ "获得锁的结果"+ lock.tryLock(1,3, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            });
+        }finally {
+            lock.unlock();
+        }
+    }
+
+
+    @Test
+    public void testMapAdder(){
+        String key = "testMapAdder";
+        String hashKey = "A";
+        RMap<String,Long> accumulatorMap =  redissonClient.getMap(key);
+        RLock lock = accumulatorMap.getFairLock(hashKey);
+        AtomicLong atomicLong = new AtomicLong();
+        IntStream.range(1,30).parallel().forEach(r->{
+            atomicLong.incrementAndGet();
+        });
+        System.out.println(atomicLong.get());
+
+        IntStream.range(1,30).parallel().forEach(r->{
+            try {
+                for(int i=0;i<5;i++){
+                    boolean locked = lock.tryLock(2,10,TimeUnit.SECONDS);
+                    if(locked){
+                        long count = accumulatorMap.getOrDefault(hashKey,0L);
+                        count ++;
+                        accumulatorMap.fastPut(hashKey,count);
+                        System.out.println(Thread.currentThread().getName()+" "+ r+ "当前数量"+count);
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }finally {
+                try{
+                    lock.unlock();
+                }catch (Exception e2){}
             }
         });
 

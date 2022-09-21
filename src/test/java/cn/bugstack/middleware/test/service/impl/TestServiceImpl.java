@@ -6,6 +6,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 /**
  * @author 徐明龙 XuMingLong 2022-02-15
  */
@@ -17,7 +19,7 @@ public class TestServiceImpl implements ITestService {
     @Cacheable(cacheNames = "getValue",key = "#id")
     @Override public Vo getValue(Integer id) {
         System.out.println("getValue方法被调用");
-        return id==1?new Vo(1,"测试1"):new Vo(id,"不存在");
+        return id==1?new Vo(1,"测试1", LocalDateTime.now()):new Vo(id,"不存在",LocalDateTime.now());
     }
 
 

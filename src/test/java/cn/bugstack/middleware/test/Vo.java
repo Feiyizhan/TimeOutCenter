@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * 测试Vo
@@ -14,4 +15,5 @@ import java.io.Serializable;
 public class Vo implements Serializable {
     Integer id;
     String value;
+    LocalDateTime now;
 }

@@ -3,6 +3,7 @@ package cn.bugstack.middleware.test;
 import org.junit.Test;
 
 import java.io.*;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -29,8 +30,8 @@ public class Tests {
 
     @Test
     public void se(){
-        Vo vo1 = new Vo(1,"测试1");
-        Vo vo2 = new Vo(2,"测试1");
+        Vo vo1 = new Vo(1,"测试1", LocalDateTime.now());
+        Vo vo2 = new Vo(2,"测试1",LocalDateTime.now());
 //        Comparator<Vo> comparator =  Comparator.comparing(Vo::getId);
         Comparator<Vo> comparator = Comparator.nullsFirst((Comparator<Vo> &Serializable)(x,y)->Integer.compare(x.id,y.id));
         System.out.println(comparator.compare(vo1,vo2));

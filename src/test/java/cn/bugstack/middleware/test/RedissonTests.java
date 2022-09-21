@@ -7,11 +7,16 @@ import org.redisson.api.*;
 import org.redisson.codec.JsonJacksonCodec;
 import org.redisson.codec.SerializationCodec;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import javax.annotation.Resource;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Redisson 测试类
@@ -23,6 +28,24 @@ public class RedissonTests {
 
     @Resource
     private RedissonClient redissonClient;
+
+    @Resource
+    private RedisTemplate redisTemplate;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Test
+    public void testRedisTemplate(){
+        System.out.println(redisTemplate.hasKey("testJsonString"));
+        System.out.println(redisTemplate.opsForValue().get("testJsonString"));
+    }
+
+    @Test
+    public void testStringRedisTemplate(){
+        System.out.println(stringRedisTemplate.hasKey("testJsonString"));
+        System.out.println(stringRedisTemplate.opsForValue().get("testJsonString"));
+    }
 
 
     @Test
@@ -46,12 +69,12 @@ public class RedissonTests {
 
         //默认编码器（Java序列化和反序列化）Bucket
         RBucket<Vo> voRBucket = redissonClient.getBucket("testObjVo");
-        voRBucket.set(new Vo(1,"测试1"));
+        voRBucket.set(new Vo(1,"测试1",LocalDateTime.now()));
         System.out.println(voRBucket.get());
 
         //指定编码器的Bucket
         RBucket<Vo> jsonRBucket = redissonClient.getBucket("testJsonObjVo", JsonJacksonCodec.INSTANCE);
-        jsonRBucket.set(new Vo(1,"测试1"));
+        jsonRBucket.set(new Vo(1,"测试1",LocalDateTime.now()));
         System.out.println(jsonRBucket.get());
 
     }
@@ -69,13 +92,75 @@ public class RedissonTests {
 
         //指定编码器的Bucket
         RMap<String,Vo> jsonMap = redissonClient.getMap("testJsonObjVoMap", JsonJacksonCodec.INSTANCE);
-        jsonMap.put("1",new Vo(1,"测试1"));
-        jsonMap.put("2",new Vo(2,"测试2"));
-        jsonMap.put("3",new Vo(3,"测试3"));
+        jsonMap.put("1",new Vo(1,"测试1",LocalDateTime.now()));
+        jsonMap.put("2",new Vo(2,"测试2",LocalDateTime.now()));
+        jsonMap.put("3",new Vo(3,"测试3",LocalDateTime.now()));
         System.out.println(jsonMap.readAllMap());
 
 
     }
+
+    @Test
+    public void testRedissonHash2(){
+
+        //指定编码器的Bucket
+        RMap<String,Vo> jsonMap1 = redissonClient.getMap("testJsonObjVoMap2::Map1", JsonJacksonCodec.INSTANCE);
+        jsonMap1.put("1",new Vo(1,"测试1",LocalDateTime.now()));
+        jsonMap1.put("2",new Vo(2,"测试2",LocalDateTime.now()));
+        jsonMap1.put("3",new Vo(3,"测试3",LocalDateTime.now()));
+        System.out.println(jsonMap1.readAllMap());
+
+        //指定编码器的Bucket
+        RMap<String,Vo> jsonMap2 = redissonClient.getMap("testJsonObjVoMap2::Map2", JsonJacksonCodec.INSTANCE);
+        jsonMap2.put("1",new Vo(1,"测试1",LocalDateTime.now()));
+        jsonMap2.put("2",new Vo(2,"测试2",LocalDateTime.now()));
+        jsonMap2.put("3",new Vo(3,"测试3",LocalDateTime.now()));
+        System.out.println(jsonMap2.readAllMap());
+
+
+    }
+
+    @Test
+    public void testRedissonHash3(){
+
+        //指定编码器的Bucket
+        RMap<String, Map<String,Vo>> jsonMap = redissonClient.getMap("testJsonObjVoMap3", JsonJacksonCodec.INSTANCE);
+        if(!jsonMap.containsKey("Map1")){
+            Map<String,Vo> map1 = new LinkedHashMap<>();
+            map1.put("1",new Vo(1,"测试1",LocalDateTime.now()));
+            map1.put("2",new Vo(2,"测试2",LocalDateTime.now()));
+            map1.put("3",new Vo(3,"测试3",LocalDateTime.now()));
+            jsonMap.put("Map1",map1);
+        }
+
+        System.out.println(jsonMap.readAllMap());
+        if(!jsonMap.containsKey("Map2")){
+            Map<String,Vo> map2 = new LinkedHashMap<>();
+            map2.put("1",new Vo(1,"测试1",LocalDateTime.now()));
+            map2.put("2",new Vo(2,"测试2",LocalDateTime.now()));
+            map2.put("3",new Vo(3,"测试3",LocalDateTime.now()));
+            jsonMap.put("Map2",map2);
+        }
+        System.out.println(jsonMap.readAllMap());
+
+
+    }
+
+    @Test
+    public void testRedissonHash4(){
+
+        //指定编码器的Bucket
+        RMap<String, String> jsonMap = redissonClient.getMap("testJsonObjVoMap4", JsonJacksonCodec.INSTANCE);
+
+
+        System.out.println(jsonMap.fastPutIfAbsent("A","A1"));
+
+        System.out.println(jsonMap.fastPutIfAbsent("A","A1"));
+
+
+    }
+
+
 
 
     @Test
@@ -90,9 +175,9 @@ public class RedissonTests {
 
         //指定编码器的Bucket
         RList<Vo> jsonList = redissonClient.getList("testJsonObjVoList", JsonJacksonCodec.INSTANCE);
-        jsonList.add(new Vo(1,"测试1"));
-        jsonList.add(new Vo(2,"测试2"));
-        jsonList.add(new Vo(3,"测试3"));
+        jsonList.add(new Vo(1,"测试1",LocalDateTime.now()));
+        jsonList.add(new Vo(2,"测试2",LocalDateTime.now()));
+        jsonList.add(new Vo(3,"测试3",LocalDateTime.now()));
         System.out.println(jsonList.readAll());
 
     }
@@ -109,10 +194,10 @@ public class RedissonTests {
 
         //指定编码器的Bucket
         RSet<Vo> jsonSet = redissonClient.getSet("testJsonObjVoSet", JsonJacksonCodec.INSTANCE);
-        jsonSet.add(new Vo(1,"测试1"));
-        jsonSet.add(new Vo(1,"测试1"));
-        jsonSet.add(new Vo(3,"测试3"));
-        jsonSet.add(new Vo(2,"测试2"));
+        jsonSet.add(new Vo(1,"测试1",LocalDateTime.now()));
+        jsonSet.add(new Vo(1,"测试1",LocalDateTime.now()));
+        jsonSet.add(new Vo(3,"测试3",LocalDateTime.now()));
+        jsonSet.add(new Vo(2,"测试2",LocalDateTime.now()));
         System.out.println(jsonSet.readAll());
     }
 
@@ -132,10 +217,10 @@ public class RedissonTests {
             //在集合没有元素的时候，设置元素比对规则
             jsonSet.trySetComparator(Comparator.nullsFirst((Comparator<Vo> & Serializable)(x,y)->Integer.compare(x.id,y.id)));
         }
-        jsonSet.add(new Vo(1,"测试1"));
-        jsonSet.add(new Vo(1,"测试1"));
-        jsonSet.add(new Vo(3,"测试3"));
-        jsonSet.add(new Vo(2,"测试2"));
+        jsonSet.add(new Vo(1,"测试1",LocalDateTime.now()));
+        jsonSet.add(new Vo(1,"测试1",LocalDateTime.now()));
+        jsonSet.add(new Vo(3,"测试3",LocalDateTime.now()));
+        jsonSet.add(new Vo(2,"测试2",LocalDateTime.now()));
         System.out.println(jsonSet.readAll());
 
         //        jsonSet.trySetComparator(Comparator.comparing(Vo::getId));
@@ -151,8 +236,8 @@ public class RedissonTests {
 
     @Test
     public void testSerializationCodec(){
-        Vo vo1 = new Vo(1,"测试1");
-        Vo vo2 = new Vo(2,"测试1");
+        Vo vo1 = new Vo(1,"测试1",LocalDateTime.now());
+        Vo vo2 = new Vo(2,"测试1",LocalDateTime.now());
         Comparator<Vo> comparator = Comparator.nullsFirst((Comparator<Vo> & Serializable)(x,y)->Integer.compare(x.id,y.id));
         System.out.println(comparator.compare(vo1,vo2));
         RBucket<Comparator<Vo>> comparatorInstance = redissonClient.getBucket("testSerializable", new SerializationCodec());
@@ -163,6 +248,21 @@ public class RedissonTests {
 
     }
 
+    @Test
+    public void testRedissonLocalDateTime(){
+        LocalDateTime now = LocalDateTime.now();
+
+        //默认编码器（Java序列化和反序列化）Bucket
+        RBucket<LocalDateTime> voRBucket = redissonClient.getBucket("testLocalDateTime");
+        voRBucket.set(now);
+        System.out.println(voRBucket.get());
+
+        //指定编码器的Bucket
+        RBucket<LocalDateTime> jsonRBucket = redissonClient.getBucket("testLocalDateTime2", JsonJacksonCodec.INSTANCE);
+        jsonRBucket.set(now);
+        System.out.println(jsonRBucket.get());
+
+    }
 
 
     @After
