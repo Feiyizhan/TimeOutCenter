@@ -3,9 +3,10 @@ package cn.bugstack.middleware;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
-import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -23,7 +24,6 @@ import java.time.format.DateTimeFormatterBuilder;
  */
 
 @Configuration
-@Log4j2
 public class RedisConfiguration {
 
     /**
@@ -63,28 +63,25 @@ public class RedisConfiguration {
     @Bean(name = "jackson2JsonRedisSerializer")
     public RedisSerializer<Object> jackson2JsonRedisSerializer() {
         //使用Jackson2JsonRedisSerializer来序列化和反序列化redis的value值
-        return new GenericJackson2JsonRedisSerializer(REDIS_OM);
+        ObjectMapper redisOm = new ObjectMapper();
+        redisOm.registerModule(new JavaTimeModule())
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        return new GenericJackson2JsonRedisSerializer(redisOm);
     }
 
-    /**
-     * 默认的字符串系列化处理器
-     * @author 徐明龙 XuMingLong 2020-06-12
-     * @return org.springframework.data.redis.serializer.StringRedisSerializer
-     */
     @Bean
     public StringRedisSerializer getStringRedisSerializer() {
         return new StringRedisSerializer();
     }
 
 
-//    @Bean
+    @Bean
     public RedisTemplate<Object, Object> configRedisTemplate(RedisTemplate redisTemplate){
         redisTemplate.setKeySerializer(getStringRedisSerializer());
         redisTemplate.setValueSerializer(jackson2JsonRedisSerializer());
         redisTemplate.setHashKeySerializer(getStringRedisSerializer());
         redisTemplate.setHashValueSerializer(jackson2JsonRedisSerializer());
         System.out.println("自定义RedisTemplate加载成功");
-        log.debug("自定义RedisTemplate加载成功");
         return redisTemplate;
     }
 

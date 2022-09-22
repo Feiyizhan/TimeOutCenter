@@ -1,5 +1,7 @@
 package cn.bugstack.middleware;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.redisson.codec.JsonJacksonCodec;
 import org.redisson.config.Config;
 import org.redisson.spring.starter.RedissonAutoConfigurationCustomizer;
@@ -18,10 +20,11 @@ public class MyRedissonAutoConfigurationCustomizer implements RedissonAutoConfig
      */
     @Override public void customize(Config configuration) {
         System.out.println("设置默认的Redisson Codec 为 JsonJacksonCodec");
-        JsonJacksonCodec jacksonCodec = new JsonJacksonCodec(RedisConfiguration.REDIS_OM);
-//        jacksonCodec.getObjectMapper()
-//            .registerModule(new JavaTimeModule())
-//            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        JsonJacksonCodec jacksonCodec = new JsonJacksonCodec();
+        //支持Java 8 新的日期类型序列化和反序列化
+        jacksonCodec.getObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         configuration.setCodec(jacksonCodec);
     }
 }

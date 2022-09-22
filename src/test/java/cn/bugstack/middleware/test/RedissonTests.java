@@ -1,9 +1,13 @@
 package cn.bugstack.middleware.test;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jodd.util.concurrent.ThreadFactoryBuilder;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.redisson.api.*;
+import org.redisson.client.codec.LongCodec;
 import org.redisson.codec.JsonJacksonCodec;
 import org.redisson.codec.SerializationCodec;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,7 +20,11 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Redisson 测试类
@@ -35,10 +43,113 @@ public class RedissonTests {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    private static final Map<String,RMap<String,Long>> cacheAccumulatorMap = new ConcurrentHashMap<>();
+
+    private static final ExecutorService
+        testExecutorService = new ThreadPoolExecutor(100,100,0L, TimeUnit.MILLISECONDS,
+        new LinkedBlockingQueue<>(1024),new ThreadFactoryBuilder()
+        .setNameFormat("Test-pool-%d").get());
+
+    @Test
+    public void testAccumulatorMap1(){
+        String key = "testAccumulatorMap1";
+        String hashKey = "A1";
+        IntStream.range(1,101).forEach(r->{
+            System.out.println(accumulate1(key,hashKey));
+        });
+
+
+    }
+
+    @Test
+    public void testAccumulatorMap2(){
+        String key = "testAccumulatorMap2";
+        String hashKey = "A1";
+        List<CompletableFuture<Long>> cfList = IntStream.range(1,101).mapToObj(r->{
+            return CompletableFuture.completedFuture(r)
+                .thenApplyAsync(item->
+                        accumulate1(key,hashKey)
+                    ,testExecutorService)
+                .whenCompleteAsync((k,e)->{
+                    System.out.println(String.format("%s-%d",Thread.currentThread().getName(),k));
+                }).exceptionally(ex->{
+                    ex.printStackTrace();
+                    return 0L;
+                });
+        }).collect(Collectors.toList());
+        // 向线程池提交任务
+        CompletableFuture.allOf(cfList.toArray(new CompletableFuture[cfList.size()])).whenComplete((k,e)->{
+            System.out.println(redissonClient.getMap(key).get(hashKey));
+        }).join();
+
+    }
+
+    @Test
+    public void testAccumulatorMap3(){
+        String key = "testAccumulatorMap3";
+        String hashKey = "A1";
+        List<CompletableFuture<Long>> cfList = IntStream.range(1,101).mapToObj(r->{
+            return CompletableFuture.completedFuture(r)
+                .thenApplyAsync(item->
+                        accumulate2(key,hashKey)
+                    ,testExecutorService)
+                .whenCompleteAsync((k,e)->{
+                    System.out.println(String.format("%s-%d",Thread.currentThread().getName(),k));
+                }).exceptionally(ex->{
+                    ex.printStackTrace();
+                    return 0L;
+                });
+        }).collect(Collectors.toList());
+        // 向线程池提交任务
+        CompletableFuture.allOf(cfList.toArray(new CompletableFuture[cfList.size()])).whenComplete((k,e)->{
+            System.out.println(redissonClient.getMap(key).get(hashKey));
+        }).join();
+
+    }
+
+
+
+    @Test
+    public void testAccumulatorMap4(){
+        String key = "testAccumulatorMap4";
+        String hashKey = "A1";
+        accumulate2(key,hashKey);
+    }
+
+    @Test
+    public void testAccumulatorMap5(){
+        String key = "testAccumulatorMap5";
+        String hashKey = "A1";
+        accumulate3(key,hashKey);
+    }
+
+
+    private Long accumulate1(String key,String hashKey){
+        RMap<String,Long> accumulatorMap = redissonClient.getMap(key);
+        long value = accumulatorMap.getOrDefault(hashKey,0L);
+        accumulatorMap.fastPut(hashKey,value+1);
+        return accumulatorMap.get(hashKey);
+    }
+
+    private long accumulate2(String key,String hashKey){
+        RMap<String,Long> accumulatorMap = redissonClient.getMap(key, LongCodec.INSTANCE);
+        accumulatorMap.addAndGet(hashKey,1L);
+        Long value = accumulatorMap.get(hashKey);
+        return value;
+    }
+
+    private long accumulate3(String key,String hashKey){
+        redisTemplate.opsForHash().increment(key,hashKey,1L);
+        Object obj = redisTemplate.opsForHash().get(key,hashKey);
+        Long value = Long.valueOf(obj.toString()) ;
+        return value;
+    }
+
     @Test
     public void testRedisTemplate(){
-        System.out.println(redisTemplate.hasKey("testJsonString"));
-        System.out.println(redisTemplate.opsForValue().get("testJsonString"));
+        redisTemplate.opsForValue().set("testString","测试字符串1");
+        System.out.println(redisTemplate.hasKey("testString"));
+        System.out.println(redisTemplate.opsForValue().get("testString"));
     }
 
     @Test
@@ -85,16 +196,20 @@ public class RedissonTests {
 
         //默认编码器（Java序列化和反序列化）Bucket
         RMap<String,String> map = redissonClient.getMap("testMapString");
-        map.put("id", "123");
-        map.put("name", "小李");
-        map.put("age", "50");
+        map.fastPut("id", "123");
+        map.fastPut("name", "小李");
+        map.fastPut("age", "50");
         System.out.println(map.get("id"));
 
+        JsonJacksonCodec jacksonCodec = new JsonJacksonCodec();
+        jacksonCodec.getObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         //指定编码器的Bucket
-        RMap<String,Vo> jsonMap = redissonClient.getMap("testJsonObjVoMap", JsonJacksonCodec.INSTANCE);
-        jsonMap.put("1",new Vo(1,"测试1",LocalDateTime.now()));
-        jsonMap.put("2",new Vo(2,"测试2",LocalDateTime.now()));
-        jsonMap.put("3",new Vo(3,"测试3",LocalDateTime.now()));
+        RMap<String,Vo> jsonMap = redissonClient.getMap("testJsonObjVoMap", jacksonCodec);
+        jsonMap.fastPut("1",new Vo(1,"测试1",LocalDateTime.now()));
+        jsonMap.fastPut("2",new Vo(2,"测试2",LocalDateTime.now()));
+        jsonMap.fastPut("3",new Vo(3,"测试3",LocalDateTime.now()));
         System.out.println(jsonMap.readAllMap());
 
 
