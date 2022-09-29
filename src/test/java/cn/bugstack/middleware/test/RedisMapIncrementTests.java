@@ -1,5 +1,6 @@
 package cn.bugstack.middleware.test;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import jodd.util.concurrent.ThreadFactoryBuilder;
 import org.junit.After;
 import org.junit.Test;
@@ -7,6 +8,7 @@ import org.junit.runner.RunWith;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.LongCodec;
+import org.redisson.codec.TypedJsonJacksonCodec;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -109,9 +111,74 @@ public class RedisMapIncrementTests {
         }).join();
     }
 
+    @Test
+    public void testIncrementWithRedisson2_3(){
+        String key = "testIncrementWithRedisson2_3";
+        String hashKey = "A1";
+        IntStream.range(1,101).forEach(r->{
+            System.out.println(incrementWithRedisson2(key,hashKey));
+        });
+        //强制指定本Map的Codec 为LongCodec
+        RMap<String,Long> accumulatorMap = redissonClient.getMap(key,LongCodec.INSTANCE);
+        //下面这行代码不会抛出异常
+        Long value = accumulatorMap.get(hashKey);
+        System.out.println(String.format("累加的结果%d",value));
+
+        //下面这些代码都会抛出异常  java.lang.NumberFormatException: For input string: "A1"
+                accumulatorMap.readAllKeySet();
+        //        accumulatorMap.keySet().forEach(k->{
+        //            System.out.println(k+"-"+accumulatorMap.get(k));
+        //        });
+        //        accumulatorMap.forEach((mapKey,mapValue)->{
+        //            System.out.println(mapKey+"-"+mapValue);
+        //        });
+        //        Map<String,Long> allMap = accumulatorMap.readAllMap();
+    }
+
+
+    @Test
+    public void testIncrementWithRedisson2_4(){
+        String key = "testIncrementWithRedisson2_4";
+        String hashKey = "A1";
+        List<CompletableFuture> cfList = IntStream.range(1,201).mapToObj(r->{
+            return CompletableFuture.runAsync(()->
+                    incrementWithRedisson3(key,hashKey)
+                ,testExecutorService)
+                .exceptionally(ex->{
+                    ex.printStackTrace();
+                    return null;
+                });
+        }).collect(Collectors.toList());
+        // 等待所有线程结束
+        CompletableFuture.allOf(cfList.toArray(new CompletableFuture[cfList.size()])).whenComplete((k,e)->{
+            //所有线程都结束后，取出累加的值
+            //强制指定本Map的Codec 为jacksonCodec
+            TypedJsonJacksonCodec jacksonCodec = new TypedJsonJacksonCodec(
+                new TypeReference<String>() {},
+                new TypeReference<Long>() {}
+            );
+            RMap<String,Long> accumulatorMap = redissonClient.getMap(key,jacksonCodec);
+            Long value = accumulatorMap.get(hashKey);
+            System.out.println(String.format("累加的结果%d",value));
+            accumulatorMap.forEach((mapKey,mapValue)->{
+                System.out.println(mapKey+"-"+mapValue);
+            });
+        }).join();
+    }
+
     private long incrementWithRedisson2(String key,String hashKey){
         //强制指定本Map的Codec 为LongCodec
         RMap<String,Long> accumulatorMap = redissonClient.getMap(key, LongCodec.INSTANCE);
+        return accumulatorMap.addAndGet(hashKey,1L);
+    }
+
+    private long incrementWithRedisson3(String key,String hashKey){
+        //强制指定本Map的Codec 为TypedJsonJacksonCodec
+        TypedJsonJacksonCodec jacksonCodec = new TypedJsonJacksonCodec(
+            new TypeReference<String>() {},
+            new TypeReference<Long>() {}
+        );
+        RMap<String,Long> accumulatorMap = redissonClient.getMap(key, jacksonCodec);
         return accumulatorMap.addAndGet(hashKey,1L);
     }
 
@@ -175,6 +242,8 @@ public class RedisMapIncrementTests {
     private long incrementWithRedisTemplate(String key,String hashKey){
         return redisTemplate.opsForHash().increment(key,hashKey,1L);
     }
+
+
 
     @After
     public void afterAll(){
